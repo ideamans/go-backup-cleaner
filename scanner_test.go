@@ -43,7 +43,7 @@ func TestScanner(t *testing.T) {
 	// Test scanner
 	config := CleaningConfig{
 		TimeWindow:  time.Hour,
-		WorkerCount: 2,
+		Concurrency: 2,
 	}
 	config.setDefaults()
 
@@ -95,7 +95,7 @@ func TestScannerWithSymlinks(t *testing.T) {
 	// Test scanner
 	config := CleaningConfig{
 		TimeWindow:  time.Hour,
-		WorkerCount: 1,
+		Concurrency: 1,
 	}
 	config.setDefaults()
 
@@ -135,7 +135,7 @@ func TestScannerWithPermissionError(t *testing.T) {
 	errorCount := 0
 	config := CleaningConfig{
 		TimeWindow:  time.Hour,
-		WorkerCount: 1,
+		Concurrency: 1,
 		Callbacks: Callbacks{
 			OnError: func(info ErrorInfo) {
 				errorCount++
@@ -160,7 +160,7 @@ func TestScannerWithPermissionError(t *testing.T) {
 func TestTimeSlotAggregation(t *testing.T) {
 	config := CleaningConfig{
 		TimeWindow:  time.Hour,
-		WorkerCount: 1,
+		Concurrency: 1,
 	}
 	config.setDefaults()
 

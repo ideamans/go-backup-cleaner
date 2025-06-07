@@ -42,7 +42,7 @@ func newScanner(config *CleaningConfig, blockSize int64) *scanner {
 	return &scanner{
 		config:      config,
 		blockSize:   blockSize,
-		workerCount: config.WorkerCount,
+		workerCount: config.EffectiveWorkerCount(),
 		timeSlots:   make(map[time.Time]*timeSlot),
 	}
 }

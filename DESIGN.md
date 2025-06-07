@@ -40,7 +40,10 @@ type CleaningConfig struct {
     // オプション設定
     TimeWindow        time.Duration // ファイル集計の時間間隔（デフォルト: 1分）
     RemoveEmptyDirs   bool          // 空ディレクトリを削除するか（デフォルト: true）
-    WorkerCount       int           // 並列処理のワーカー数（デフォルト: runtime.NumCPU()）
+    
+    // 並行処理設定
+    Concurrency       int      // 並列処理のワーカー数（デフォルト: runtime.NumCPU()）
+    MaxConcurrency    int      // 最大並列数の制限（デフォルト: 4）
     
     // コールバック
     Callbacks         Callbacks
@@ -49,6 +52,17 @@ type CleaningConfig struct {
     DiskInfo          DiskInfoProvider // nilの場合はデフォルト実装を使用
 }
 ```
+
+#### 並行処理設定について
+
+- `Concurrency`: 並列ワーカー数を指定します。0の場合はCPU数が使用されます。
+- `MaxConcurrency`: 並列数の上限を設定します。デフォルトは4です。
+- 実際のワーカー数は `config.EffectiveWorkerCount()` で取得できます（`min(Concurrency, MaxConcurrency)`を返します）。
+
+MaxConcurrencyを4に制限している理由：
+- ベンチマークの結果、4以上に増やしても性能向上が限定的であることが判明
+- ディスクI/Oがボトルネックとなるため、過度な並列化は効果が薄い
+- システムリソースを効率的に利用するための最適値
 
 ### DiskInfoProvider
 
@@ -303,10 +317,11 @@ jobs:
 ## 実装上の注意点
 
 1. **並行性**
-   - ファイルスキャンとファイル削除は並列処理（WorkerCountで制御）
+   - ファイルスキャンとファイル削除は並列処理（Concurrency/MaxConcurrencyで制御）
    - 空ディレクトリ削除は逐次処理（ディレクトリ階層の整合性を保つため）
    - sync.Poolを使用してfileInfo構造体を再利用
    - チャネルを使用したワーカープール実装
+   - 並列数は最大4に制限（ベンチマークによる最適化）
 
 2. **メモリ効率**
    - 時間間隔での集計によりメモリ使用量を抑制

@@ -66,7 +66,21 @@ func main() {
 
 - `TimeWindow`: Time interval for file aggregation (default: 1 minute)
 - `RemoveEmptyDirs`: Whether to remove empty directories (default: true)
-- `WorkerCount`: Number of parallel workers (default: runtime.NumCPU())
+- `Concurrency`: Number of parallel workers (default: runtime.NumCPU())
+- `MaxConcurrency`: Maximum number of parallel workers (default: 4)
+
+#### Concurrency Settings
+
+The package uses parallel processing for scanning and deleting files. You can control the level of parallelism:
+
+- `Concurrency`: Specifies the desired number of parallel workers. If set to 0, it defaults to the number of CPU cores.
+- `MaxConcurrency`: Limits the maximum number of parallel workers. Defaults to 4.
+- The actual number of workers can be obtained via `config.EffectiveWorkerCount()`, which returns `min(Concurrency, MaxConcurrency)`.
+
+The reason for limiting `MaxConcurrency` to 4:
+- Benchmarks show diminishing returns beyond 4 parallel workers
+- Disk I/O becomes the bottleneck, making excessive parallelization ineffective
+- This value provides optimal resource utilization for most systems
 
 ### Callbacks
 

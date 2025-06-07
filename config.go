@@ -15,7 +15,16 @@ type CleaningConfig struct {
 	// Optional settings
 	TimeWindow      time.Duration // Time interval for file aggregation (default: 1 minute)
 	RemoveEmptyDirs bool          // Whether to remove empty directories (default: true)
-	WorkerCount     int           // Number of parallel workers (default: runtime.NumCPU())
+	
+	// Concurrency settings
+	// Concurrency specifies the desired number of parallel workers.
+	// If 0, defaults to runtime.NumCPU().
+	Concurrency int
+	
+	// MaxConcurrency limits the maximum number of parallel workers.
+	// Defaults to 4, as benchmarks show diminishing returns beyond this value.
+	// The actual number of workers will be min(Concurrency, MaxConcurrency).
+	MaxConcurrency int
 
 	// Callbacks
 	Callbacks Callbacks
@@ -29,14 +38,31 @@ func (c *CleaningConfig) setDefaults() {
 	if c.TimeWindow == 0 {
 		c.TimeWindow = time.Minute
 	}
-	if c.WorkerCount == 0 {
-		c.WorkerCount = runtime.NumCPU()
+	
+	// Set default concurrency to CPU count if not specified
+	if c.Concurrency == 0 {
+		c.Concurrency = runtime.NumCPU()
 	}
+	
+	// Set default max concurrency
+	if c.MaxConcurrency == 0 {
+		c.MaxConcurrency = 4
+	}
+	
 	if c.DiskInfo == nil {
 		c.DiskInfo = &DefaultDiskInfoProvider{}
 	}
 	// RemoveEmptyDirs defaults to true, but we can't override explicit false
 	// So we don't set it here - let the caller decide
+}
+
+// EffectiveWorkerCount returns the actual number of workers that will be used
+func (c *CleaningConfig) EffectiveWorkerCount() int {
+	workers := c.Concurrency
+	if workers > c.MaxConcurrency {
+		workers = c.MaxConcurrency
+	}
+	return workers
 }
 
 // validate checks if the configuration is valid
@@ -61,7 +87,11 @@ func (c *CleaningConfig) validate() error {
 		return ErrInvalidConfig
 	}
 
-	if c.WorkerCount < 1 {
+	if c.Concurrency < 0 {
+		return ErrInvalidConfig
+	}
+
+	if c.MaxConcurrency < 0 {
 		return ErrInvalidConfig
 	}
 

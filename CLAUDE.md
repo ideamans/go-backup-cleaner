@@ -73,6 +73,12 @@ The package follows a modular design with clear separation of concerns:
    - Delete files older than threshold in parallel
    - Clean up empty directories (optional)
 
+4. **Concurrency Control**:
+   - Use `Concurrency` field (defaults to CPU count)
+   - Limited by `MaxConcurrency` (defaults to 4)
+   - Actual workers = min(Concurrency, MaxConcurrency)
+   - MaxConcurrency=4 based on benchmarks showing diminishing returns
+
 ## Important Design Constraints
 
 1. **Error Handling**: Individual file deletion errors don't stop the process

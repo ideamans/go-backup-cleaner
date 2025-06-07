@@ -49,7 +49,7 @@ func newDeleter(config *CleaningConfig, blockSize int64) *deleter {
 	return &deleter{
 		config:      config,
 		blockSize:   blockSize,
-		workerCount: config.WorkerCount,
+		workerCount: config.EffectiveWorkerCount(),
 		deletedDirs: &deletedDirs{
 			dirs: make(map[string]struct{}),
 		},

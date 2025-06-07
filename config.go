@@ -13,17 +13,17 @@ type CleaningConfig struct {
 	MinFreeSpace    *int64   // Minimum free space in bytes
 
 	// Optional settings
-	TimeWindow      time.Duration // Time interval for file aggregation (default: 1 minute)
+	TimeWindow      time.Duration // Time interval for file aggregation (default: 5 minutes)
 	RemoveEmptyDirs bool          // Whether to remove empty directories (default: true)
 	
 	// Concurrency settings
-	// Concurrency specifies the desired number of parallel workers.
+	// Concurrency specifies the desired level of concurrency.
 	// If 0, defaults to runtime.NumCPU().
 	Concurrency int
 	
-	// MaxConcurrency limits the maximum number of parallel workers.
+	// MaxConcurrency limits the maximum level of concurrency.
 	// Defaults to 4, as benchmarks show diminishing returns beyond this value.
-	// The actual number of workers will be min(Concurrency, MaxConcurrency).
+	// The actual concurrency will be min(Concurrency, MaxConcurrency).
 	MaxConcurrency int
 
 	// Callbacks
@@ -36,7 +36,7 @@ type CleaningConfig struct {
 // setDefaults sets default values for the configuration
 func (c *CleaningConfig) setDefaults() {
 	if c.TimeWindow == 0 {
-		c.TimeWindow = time.Minute
+		c.TimeWindow = 5 * time.Minute
 	}
 	
 	// Set default concurrency to CPU count if not specified
@@ -56,8 +56,8 @@ func (c *CleaningConfig) setDefaults() {
 	// So we don't set it here - let the caller decide
 }
 
-// EffectiveWorkerCount returns the actual number of workers that will be used
-func (c *CleaningConfig) EffectiveWorkerCount() int {
+// ActualWorkerCount returns the actual number of workers that will be used
+func (c *CleaningConfig) ActualWorkerCount() int {
 	workers := c.Concurrency
 	if workers > c.MaxConcurrency {
 		workers = c.MaxConcurrency

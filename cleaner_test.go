@@ -401,3 +401,123 @@ func (m *mockDiskInfoProvider) GetDiskUsage(path string) (*DiskUsage, error) {
 func (m *mockDiskInfoProvider) GetBlockSize(path string) (int64, error) {
 	return 4096, nil
 }
+
+// failingDiskInfoProvider simulates disk usage retrieval failure
+type failingDiskInfoProvider struct{}
+
+func (f *failingDiskInfoProvider) GetDiskUsage(path string) (*DiskUsage, error) {
+	return nil, fmt.Errorf("disk usage not available")
+}
+
+func (f *failingDiskInfoProvider) GetBlockSize(path string) (int64, error) {
+	return 4096, nil
+}
+
+// TestCleanBackupWithoutDiskUsage tests cleaning when disk usage is not available
+func TestCleanBackupWithoutDiskUsage(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir, err := os.MkdirTemp("", "backup-cleaner-nodisk-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create test files
+	now := time.Now()
+	testFiles := []struct {
+		name    string
+		size    int64
+		modTime time.Time
+	}{
+		{"old1.txt", 1024 * 1024, now.Add(-72 * time.Hour)},     // 1MB
+		{"old2.txt", 2 * 1024 * 1024, now.Add(-48 * time.Hour)}, // 2MB
+		{"recent1.txt", 512 * 1024, now.Add(-1 * time.Hour)},    // 512KB
+		{"recent2.txt", 256 * 1024, now.Add(-30 * time.Minute)}, // 256KB
+	}
+
+	// Create test files
+	var totalTestSize int64
+	for _, tf := range testFiles {
+		path := filepath.Join(tmpDir, tf.name)
+		if err := createTestFile(path, tf.size, tf.modTime); err != nil {
+			t.Fatal(err)
+		}
+		blockSize := calculateBlockSize(tf.size, 4096)
+		totalTestSize += blockSize
+		t.Logf("Created %s: %d bytes (block: %d), modTime: %v", tf.name, tf.size, blockSize, tf.modTime)
+	}
+
+	// Test with MaxSize when disk usage is not available
+	maxSize := int64(2 * 1024 * 1024) // 2MB max
+	t.Logf("Total test size (blocks): %d, MaxSize: %d", totalTestSize, maxSize)
+	config := CleaningConfig{
+		MaxSize:         &maxSize,
+		TimeWindow:      time.Hour,
+		RemoveEmptyDirs: true,
+		DiskInfo:        &failingDiskInfoProvider{},
+	}
+
+	report, err := CleanBackup(tmpDir, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should have deleted old files to get under 2MB
+	if report.DeletedFiles == 0 {
+		t.Error("Expected some files to be deleted")
+	}
+	
+	t.Logf("TimeThreshold: %v", report.TimeThreshold)
+
+	// Verify that files were deleted
+	t.Logf("Deleted %d files, %d bytes", report.DeletedFiles, report.DeletedSize)
+	
+	// Check which files remain
+	remainingFiles := 0
+	var remainingSize int64
+	var remainingBlockSize int64
+	blockSize := int64(4096)
+	
+	files := []string{"old1.txt", "old2.txt", "recent1.txt", "recent2.txt"}
+	for _, fname := range files {
+		if info, err := os.Stat(filepath.Join(tmpDir, fname)); err == nil {
+			remainingFiles++
+			remainingSize += info.Size()
+			remainingBlockSize += calculateBlockSize(info.Size(), blockSize)
+			t.Logf("Remaining: %s (%d bytes, %d block bytes)", fname, info.Size(), 
+				calculateBlockSize(info.Size(), blockSize))
+		}
+	}
+
+	// The algorithm should keep total block size under maxSize
+	// We need to check block-aligned sizes, not actual file sizes
+	if remainingBlockSize > maxSize {
+		t.Errorf("Remaining block size %d exceeds max size %d", remainingBlockSize, maxSize)
+	}
+}
+
+// TestCleanBackupWithoutDiskUsageAndNoMaxSize tests that we fail gracefully when disk usage is not available and no MaxSize
+func TestCleanBackupWithoutDiskUsageAndNoMaxSize(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "backup-cleaner-fail-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a test file
+	if err := createTestFile(filepath.Join(tmpDir, "test.txt"), 1024, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test with only MaxUsagePercent when disk usage is not available
+	maxUsage := float64(70)
+	config := CleaningConfig{
+		MaxUsagePercent: &maxUsage,
+		DiskInfo:        &failingDiskInfoProvider{},
+	}
+
+	_, err = CleanBackup(tmpDir, config)
+	if err == nil {
+		t.Error("Expected error when disk usage is not available and no MaxSize is specified")
+	}
+}

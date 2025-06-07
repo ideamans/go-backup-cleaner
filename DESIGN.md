@@ -38,12 +38,12 @@ type CleaningConfig struct {
     MinFreeSpace      *int64   // 最小空き容量（バイト単位）
     
     // オプション設定
-    TimeWindow        time.Duration // ファイル集計の時間間隔（デフォルト: 1分）
+    TimeWindow        time.Duration // ファイル集計の時間間隔（デフォルト: 5分）
     RemoveEmptyDirs   bool          // 空ディレクトリを削除するか（デフォルト: true）
     
-    // 並行処理設定
-    Concurrency       int      // 並列処理のワーカー数（デフォルト: runtime.NumCPU()）
-    MaxConcurrency    int      // 最大並列数の制限（デフォルト: 4）
+    // 並列処理設定
+    Concurrency       int      // 並列処理の並行度（デフォルト: runtime.NumCPU()）
+    MaxConcurrency    int      // 最大並行度の制限（デフォルト: 4）
     
     // コールバック
     Callbacks         Callbacks
@@ -53,11 +53,11 @@ type CleaningConfig struct {
 }
 ```
 
-#### 並行処理設定について
+#### 並列処理設定について
 
-- `Concurrency`: 並列ワーカー数を指定します。0の場合はCPU数が使用されます。
-- `MaxConcurrency`: 並列数の上限を設定します。デフォルトは4です。
-- 実際のワーカー数は `config.EffectiveWorkerCount()` で取得できます（`min(Concurrency, MaxConcurrency)`を返します）。
+- `Concurrency`: 並列処理の並行度を指定します。0の場合はCPU数が使用されます。
+- `MaxConcurrency`: 並行度の上限を設定します。デフォルトは4です。
+- 実際の並行度は `config.ActualWorkerCount()` で取得できます（`min(Concurrency, MaxConcurrency)`を返します）。
 
 MaxConcurrencyを4に制限している理由：
 - ベンチマークの結果、4以上に増やしても性能向上が限定的であることが判明
@@ -239,6 +239,7 @@ var (
 // 基本的な使用例
 config := CleaningConfig{
     MaxUsagePercent: &percent80,
+    TimeWindow: 10 * time.Minute, // デフォルトは5分
     Callbacks: Callbacks{
         OnFileDeleted: func(info FileDeletedInfo) {
             log.Printf("Deleted: %s (%d bytes)", info.Path, info.Size)
@@ -321,7 +322,7 @@ jobs:
    - 空ディレクトリ削除は逐次処理（ディレクトリ階層の整合性を保つため）
    - sync.Poolを使用してfileInfo構造体を再利用
    - チャネルを使用したワーカープール実装
-   - 並列数は最大4に制限（ベンチマークによる最適化）
+   - 並行度は最大4に制限（ベンチマークによる最適化）
 
 2. **メモリ効率**
    - 時間間隔での集計によりメモリ使用量を抑制

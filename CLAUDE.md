@@ -61,7 +61,7 @@ The package follows a modular design with clear separation of concerns:
 
 2. **Key Design Decisions**:
    - **Parallel Processing**: File scanning and deletion use worker pools
-   - **Memory Efficiency**: Time-windowed aggregation to handle large file sets
+   - **Memory Efficiency**: Time-windowed aggregation (5-minute default) to handle large file sets
    - **Dependency Injection**: DiskInfoProvider interface for testing
    - **Callback System**: Non-blocking progress notifications
    - **Cross-platform**: OS-specific implementations for disk operations

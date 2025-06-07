@@ -3,6 +3,7 @@ package gobackupcleaner
 import (
 	"runtime"
 	"testing"
+	"time"
 )
 
 // TestConfigConcurrencyDefaults tests the concurrency default settings
@@ -55,9 +56,9 @@ func TestConfigConcurrencyDefaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.config.setDefaults()
 
-			effectiveWorkers := tt.config.EffectiveWorkerCount()
+			effectiveWorkers := tt.config.ActualWorkerCount()
 			if effectiveWorkers != tt.expectedWorkers {
-				t.Errorf("Expected EffectiveWorkerCount %d, got %d", tt.expectedWorkers, effectiveWorkers)
+				t.Errorf("Expected ActualWorkerCount %d, got %d", tt.expectedWorkers, effectiveWorkers)
 			}
 			if tt.config.Concurrency != tt.expectedConcurrency {
 				t.Errorf("Expected Concurrency %d, got %d", tt.expectedConcurrency, tt.config.Concurrency)
@@ -74,4 +75,26 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// TestConfigTimeWindowDefault tests the TimeWindow default value
+func TestConfigTimeWindowDefault(t *testing.T) {
+	config := CleaningConfig{}
+	config.setDefaults()
+	
+	expectedWindow := 5 * time.Minute
+	if config.TimeWindow != expectedWindow {
+		t.Errorf("Expected TimeWindow %v, got %v", expectedWindow, config.TimeWindow)
+	}
+	
+	// Test that explicit value is not overridden
+	customWindow := 10 * time.Minute
+	config2 := CleaningConfig{
+		TimeWindow: customWindow,
+	}
+	config2.setDefaults()
+	
+	if config2.TimeWindow != customWindow {
+		t.Errorf("Expected TimeWindow %v, got %v", customWindow, config2.TimeWindow)
+	}
 }

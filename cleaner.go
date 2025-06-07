@@ -25,17 +25,33 @@ func CleanBackup(dirPath string, config CleaningConfig) (CleaningReport, error) 
 
 	// Get current disk usage
 	currentUsage, err := config.DiskInfo.GetDiskUsage(dirPath)
+	var diskUsageError error
 	if err != nil {
-		return CleaningReport{}, err
+		// Save the error for later
+		diskUsageError = err
+		// Check if we can proceed without disk usage
+		if config.MaxSize == nil {
+			// Can't proceed without disk usage when only MaxUsagePercent or MinFreeSpace is specified
+			return CleaningReport{}, err
+		}
 	}
 
 	// Calculate target deletion size
-	targetSize := calculateTargetSize(currentUsage, &config)
-	if targetSize <= 0 {
-		// No need to delete anything
-		return CleaningReport{
-			TotalDuration: time.Since(startTime),
-		}, nil
+	var targetSize int64
+	if diskUsageError != nil && config.MaxSize != nil {
+		// Special case: can't get disk usage but MaxSize is specified
+		// In this case, we'll scan all files and delete until total size is under MaxSize
+		// This allows the cleaner to work in environments where disk usage APIs are not available
+		// (e.g., restricted permissions, network storage, etc.)
+		targetSize = -1 // Special value to indicate "scan and delete until under MaxSize"
+	} else {
+		targetSize = calculateTargetSize(currentUsage, &config)
+		if targetSize <= 0 {
+			// No need to delete anything
+			return CleaningReport{
+				TotalDuration: time.Since(startTime),
+			}, nil
+		}
 	}
 
 	// Get block size
@@ -45,11 +61,17 @@ func CleanBackup(dirPath string, config CleaningConfig) (CleaningReport, error) 
 	}
 
 	// Call OnStart callback
-	callSafe(config.Callbacks.OnStart, StartInfo{
-		TargetDir:    dirPath,
-		CurrentUsage: *currentUsage,
-		TargetSize:   targetSize,
-	})
+	if currentUsage != nil || targetSize == -1 {
+		var usage DiskUsage
+		if currentUsage != nil {
+			usage = *currentUsage
+		}
+		callSafe(config.Callbacks.OnStart, StartInfo{
+			TargetDir:    dirPath,
+			CurrentUsage: usage,
+			TargetSize:   targetSize,
+		})
+	}
 
 	// Phase 1: Scan files
 	scanStartTime := time.Now()
@@ -69,7 +91,16 @@ func CleanBackup(dirPath string, config CleaningConfig) (CleaningReport, error) 
 	}
 
 	// Calculate deletion threshold
-	threshold, estimatedFiles, estimatedSize := calculateThreshold(timeSlots, targetSize)
+	var threshold time.Time
+	var estimatedFiles int
+	var estimatedSize int64
+	
+	if targetSize == -1 && config.MaxSize != nil {
+		// Special case: delete until total size is under MaxSize
+		threshold, estimatedFiles, estimatedSize = calculateThresholdForMaxSize(timeSlots, *config.MaxSize)
+	} else {
+		threshold, estimatedFiles, estimatedSize = calculateThreshold(timeSlots, targetSize)
+	}
 	scanDuration := time.Since(scanStartTime)
 
 	// Call OnScanComplete callback
@@ -207,4 +238,49 @@ func getTotalSize(slots []*timeSlot) int64 {
 		total += slot.totalSize
 	}
 	return total
+}
+
+// calculateThresholdForMaxSize calculates the time threshold when total size must be under maxSize
+func calculateThresholdForMaxSize(slots []*timeSlot, maxSize int64) (time.Time, int, int64) {
+	var totalSize int64
+	var remainingSize int64
+	var deleteFiles int
+	var deleteSize int64
+	
+	// Calculate total size
+	for _, slot := range slots {
+		totalSize += slot.totalBlockSize
+	}
+
+	// If already under maxSize, no need to delete
+	if totalSize <= maxSize {
+		return time.Time{}, 0, 0
+	}
+
+	// Start from the newest files and work backwards
+	// We want to keep as much as possible under maxSize
+	remainingSize = totalSize
+	
+	// Find the cutoff point - delete old files until we're under maxSize
+	for i := 0; i < len(slots); i++ {
+		slot := slots[i]
+		
+		// Delete this entire slot
+		remainingSize -= slot.totalBlockSize
+		deleteFiles += len(slot.files)
+		deleteSize += slot.totalBlockSize
+		
+		// Check if we've deleted enough
+		if remainingSize <= maxSize {
+			// We've reached our target - set threshold to include this slot
+			// Add an hour to ensure all files in this time window are included
+			return slot.time.Add(time.Hour), deleteFiles, deleteSize
+		}
+	}
+	
+	// If we get here, we need to delete everything (shouldn't happen normally)
+	if len(slots) > 0 {
+		return time.Now().Add(time.Hour), deleteFiles, deleteSize
+	}
+	return time.Time{}, 0, 0
 }

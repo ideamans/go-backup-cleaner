@@ -1,5 +1,7 @@
 # go-backup-cleaner
 
+English | [日本語](README.ja.md)
+
 [![Test](https://github.com/ideamans/go-backup-cleaner/actions/workflows/test.yml/badge.svg)](https://github.com/ideamans/go-backup-cleaner/actions/workflows/test.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ideamans/go-backup-cleaner.svg)](https://pkg.go.dev/github.com/ideamans/go-backup-cleaner)
 
@@ -64,23 +66,31 @@ func main() {
 
 ### Optional Settings
 
-- `TimeWindow`: Time interval for file aggregation (default: 1 minute)
+- `TimeWindow`: Time interval for file aggregation (default: 5 minutes)
 - `RemoveEmptyDirs`: Whether to remove empty directories (default: true)
-- `Concurrency`: Number of parallel workers (default: runtime.NumCPU())
-- `MaxConcurrency`: Maximum number of parallel workers (default: 4)
+- `Concurrency`: Level of concurrency (default: runtime.NumCPU())
+- `MaxConcurrency`: Maximum level of concurrency (default: 4)
 
 #### Concurrency Settings
 
 The package uses parallel processing for scanning and deleting files. You can control the level of parallelism:
 
-- `Concurrency`: Specifies the desired number of parallel workers. If set to 0, it defaults to the number of CPU cores.
-- `MaxConcurrency`: Limits the maximum number of parallel workers. Defaults to 4.
-- The actual number of workers can be obtained via `config.EffectiveWorkerCount()`, which returns `min(Concurrency, MaxConcurrency)`.
+- `Concurrency`: Specifies the desired level of concurrency. If set to 0, it defaults to the number of CPU cores.
+- `MaxConcurrency`: Limits the maximum level of concurrency. Defaults to 4.
+- The actual concurrency can be obtained via `config.ActualWorkerCount()`, which returns `min(Concurrency, MaxConcurrency)`.
 
 The reason for limiting `MaxConcurrency` to 4:
 - Benchmarks show diminishing returns beyond 4 parallel workers
 - Disk I/O becomes the bottleneck, making excessive parallelization ineffective
 - This value provides optimal resource utilization for most systems
+
+#### Block Size
+
+The cleaner considers "block size" when calculating disk space. Block size refers to the minimum allocation unit used by the file system. When a file is stored on disk, it occupies space in multiples of the block size, even if the actual file size is smaller. For example:
+- A 1KB file on a file system with 4KB blocks will actually use 4KB of disk space
+- A 5KB file on the same system will use 8KB (2 blocks)
+
+This package accurately tracks both the file size and the actual disk space that will be freed when files are deleted, ensuring precise capacity management.
 
 ### Callbacks
 
@@ -101,6 +111,16 @@ Monitor the cleaning process with callbacks:
 3. **Determines** a time threshold - files older than this will be deleted
 4. **Deletes** files in parallel, starting with the oldest
 5. **Cleans up** empty directories (if enabled)
+
+### Special Case: MaxSize with No Disk Usage
+
+When disk usage information is not available (e.g., due to permissions or OS limitations), the cleaner can still operate if `MaxSize` is specified. In this mode, it will delete old files until the total size is under the specified limit. This is useful for:
+
+- Environments with restricted disk access
+- Network storage where disk usage APIs are not available
+- Simplified quota-based cleanup
+
+Note: `MaxUsagePercent` and `MinFreeSpace` require disk usage information and cannot be used when disk usage is unavailable.
 
 ## Testing
 

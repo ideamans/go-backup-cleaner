@@ -127,10 +127,8 @@ func CleanBackup(dirPath string, config CleaningConfig) (CleaningReport, error) 
 	}
 
 	// Phase 3: Delete empty directories
-	deletedDirs, err := deleter.deleteEmptyDirs()
-	if err != nil {
-		// Non-fatal error, continue
-	}
+	deletedDirs, _ := deleter.deleteEmptyDirs()
+	// Ignore error as it's non-fatal for directory deletion
 
 	deleteDuration := time.Since(deleteStartTime)
 	deletedFiles, deletedSize, deletedBlocks := deleter.getStats()

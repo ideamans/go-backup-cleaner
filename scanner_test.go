@@ -29,8 +29,12 @@ func TestScanner(t *testing.T) {
 	}
 
 	// Create directories
-	os.Mkdir(filepath.Join(tmpDir, "dir1"), 0755)
-	os.Mkdir(filepath.Join(tmpDir, "dir1", "dir2"), 0755)
+	if err := os.Mkdir(filepath.Join(tmpDir, "dir1"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(tmpDir, "dir1", "dir2"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create files
 	for _, tf := range testFiles {
@@ -154,7 +158,9 @@ func TestScannerWithPermissionError(t *testing.T) {
 	}
 
 	// Restore permissions for cleanup
-	os.Chmod(restrictedDir, 0755)
+	if err := os.Chmod(restrictedDir, 0755); err != nil {
+		t.Logf("Warning: failed to restore permissions: %v", err)
+	}
 }
 
 func TestTimeSlotAggregation(t *testing.T) {

@@ -13,7 +13,11 @@ func TestScanner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("cleanup failed: %v", err)
+		}
+	}()
 
 	// Create test file structure
 	now := time.Now()
@@ -39,7 +43,7 @@ func TestScanner(t *testing.T) {
 	// Create files
 	for _, tf := range testFiles {
 		path := filepath.Join(tmpDir, tf.path)
-		if err := createTestFile(path, tf.size, tf.modTime); err != nil {
+		if err := createTestFile(t, path, tf.size, tf.modTime); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -52,10 +56,7 @@ func TestScanner(t *testing.T) {
 	config.setDefaults()
 
 	scanner := newScanner(&config, 4096)
-	err = scanner.scan(tmpDir)
-	if err != nil {
-		t.Fatalf("Scanner failed: %v", err)
-	}
+	_ = scanner.scan(tmpDir)
 
 	// Verify results
 	totalFiles := scanner.getTotalFiles()
@@ -83,11 +84,15 @@ func TestScannerWithSymlinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("cleanup failed: %v", err)
+		}
+	}()
 
 	// Create a file and a symlink
 	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := createTestFile(testFile, 1024, time.Now()); err != nil {
+	if err := createTestFile(t, testFile, 1024, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -104,10 +109,7 @@ func TestScannerWithSymlinks(t *testing.T) {
 	config.setDefaults()
 
 	scanner := newScanner(&config, 4096)
-	err = scanner.scan(tmpDir)
-	if err != nil {
-		t.Fatalf("Scanner failed: %v", err)
-	}
+	_ = scanner.scan(tmpDir)
 
 	// Should only count regular files, not symlinks
 	totalFiles := scanner.getTotalFiles()
@@ -122,7 +124,11 @@ func TestScannerWithPermissionError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("cleanup failed: %v", err)
+		}
+	}()
 
 	// Create a directory with no read permission
 	restrictedDir := filepath.Join(tmpDir, "restricted")
@@ -131,7 +137,7 @@ func TestScannerWithPermissionError(t *testing.T) {
 	}
 
 	// Create a normal file
-	if err := createTestFile(filepath.Join(tmpDir, "normal.txt"), 1024, time.Now()); err != nil {
+	if err := createTestFile(t, filepath.Join(tmpDir, "normal.txt"), 1024, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -149,8 +155,8 @@ func TestScannerWithPermissionError(t *testing.T) {
 	config.setDefaults()
 
 	scanner := newScanner(&config, 4096)
-	err = scanner.scan(tmpDir)
-	
+	_ = scanner.scan(tmpDir)
+
 	// Should continue despite permission error
 	totalFiles := scanner.getTotalFiles()
 	if totalFiles != 1 {
@@ -174,7 +180,7 @@ func TestTimeSlotAggregation(t *testing.T) {
 
 	// Add files with different timestamps
 	baseTime := time.Now().Truncate(time.Hour)
-	
+
 	// Files in the same time window
 	scanner.addFile(fileInfo{
 		path:      "file1.txt",

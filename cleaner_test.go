@@ -16,7 +16,11 @@ func TestCleanBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("cleanup failed: %v", err)
+		}
+	}()
 
 	// Create test files with different timestamps
 	now := time.Now()
@@ -34,7 +38,7 @@ func TestCleanBackup(t *testing.T) {
 	// Create test files
 	for _, tf := range testFiles {
 		path := filepath.Join(tmpDir, tf.name)
-		if err := createTestFile(path, tf.size, tf.modTime); err != nil {
+		if err := createTestFile(t, path, tf.size, tf.modTime); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -44,7 +48,7 @@ func TestCleanBackup(t *testing.T) {
 	if err := os.Mkdir(subDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := createTestFile(filepath.Join(subDir, "old_sub.txt"), 1024, now.Add(-96*time.Hour)); err != nil {
+	if err := createTestFile(t, filepath.Join(subDir, "old_sub.txt"), 1024, now.Add(-96*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -86,7 +90,7 @@ func TestCleanBackup(t *testing.T) {
 			remainingFiles++
 		}
 	}
-	
+
 	if remainingFiles == 0 {
 		t.Error("All files were deleted, expected some to remain")
 	}
@@ -269,7 +273,11 @@ func TestCallbacks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("cleanup failed: %v", err)
+		}
+	}()
 
 	// Create multiple test files
 	now := time.Now()
@@ -277,7 +285,7 @@ func TestCallbacks(t *testing.T) {
 		testFile := filepath.Join(tmpDir, fmt.Sprintf("test%d.txt", i))
 		// Create files with varying ages
 		age := time.Duration(i+1) * 24 * time.Hour
-		if err := createTestFile(testFile, 1024*1024, now.Add(-age)); err != nil {
+		if err := createTestFile(t, testFile, 1024*1024, now.Add(-age)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -337,8 +345,8 @@ func TestCallbacks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	
-	t.Logf("Report: DeletedFiles=%d, DeletedSize=%d, TimeThreshold=%v", 
+
+	t.Logf("Report: DeletedFiles=%d, DeletedSize=%d, TimeThreshold=%v",
 		report.DeletedFiles, report.DeletedSize, report.TimeThreshold)
 
 	// Verify all callbacks were called
@@ -361,12 +369,16 @@ func TestCallbacks(t *testing.T) {
 
 // Helper functions
 
-func createTestFile(path string, size int64, modTime time.Time) error {
+func createTestFile(t *testing.T, path string, size int64, modTime time.Time) error {
 	file, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Logf("file close failed: %v", err)
+		}
+	}()
 
 	// Write data
 	data := make([]byte, size)
@@ -420,7 +432,11 @@ func TestCleanBackupWithoutDiskUsage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("cleanup failed: %v", err)
+		}
+	}()
 
 	// Create test files
 	now := time.Now()
@@ -439,7 +455,7 @@ func TestCleanBackupWithoutDiskUsage(t *testing.T) {
 	var totalTestSize int64
 	for _, tf := range testFiles {
 		path := filepath.Join(tmpDir, tf.name)
-		if err := createTestFile(path, tf.size, tf.modTime); err != nil {
+		if err := createTestFile(t, path, tf.size, tf.modTime); err != nil {
 			t.Fatal(err)
 		}
 		blockSize := calculateBlockSize(tf.size, 4096)
@@ -466,25 +482,25 @@ func TestCleanBackupWithoutDiskUsage(t *testing.T) {
 	if report.DeletedFiles == 0 {
 		t.Error("Expected some files to be deleted")
 	}
-	
+
 	t.Logf("TimeThreshold: %v", report.TimeThreshold)
 
 	// Verify that files were deleted
 	t.Logf("Deleted %d files, %d bytes", report.DeletedFiles, report.DeletedSize)
-	
+
 	// Check which files remain
 	remainingFiles := 0
 	var remainingSize int64
 	var remainingBlockSize int64
 	blockSize := int64(4096)
-	
+
 	files := []string{"old1.txt", "old2.txt", "recent1.txt", "recent2.txt"}
 	for _, fname := range files {
 		if info, err := os.Stat(filepath.Join(tmpDir, fname)); err == nil {
 			remainingFiles++
 			remainingSize += info.Size()
 			remainingBlockSize += calculateBlockSize(info.Size(), blockSize)
-			t.Logf("Remaining: %s (%d bytes, %d block bytes)", fname, info.Size(), 
+			t.Logf("Remaining: %s (%d bytes, %d block bytes)", fname, info.Size(),
 				calculateBlockSize(info.Size(), blockSize))
 		}
 	}
@@ -502,10 +518,14 @@ func TestCleanBackupWithoutDiskUsageAndNoMaxSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("cleanup failed: %v", err)
+		}
+	}()
 
 	// Create a test file
-	if err := createTestFile(filepath.Join(tmpDir, "test.txt"), 1024, time.Now()); err != nil {
+	if err := createTestFile(t, filepath.Join(tmpDir, "test.txt"), 1024, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 

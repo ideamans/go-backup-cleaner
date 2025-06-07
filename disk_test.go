@@ -105,8 +105,12 @@ func TestDiskInfoProviderWithInvalidPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	nonExistentPath := tmpFile.Name() + "_nonexistent"
-	tmpFile.Close()
-	os.Remove(tmpFile.Name())
+	if err := tmpFile.Close(); err != nil {
+		t.Logf("tmpFile close failed: %v", err)
+	}
+	if err := os.Remove(tmpFile.Name()); err != nil {
+		t.Logf("tmpFile remove failed: %v", err)
+	}
 
 	_, err = provider.GetDiskUsage(nonExistentPath)
 	if err == nil {

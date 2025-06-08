@@ -13,9 +13,9 @@ func main() {
 	// Parse command line arguments
 	var (
 		dir        = flag.String("dir", "", "Directory to clean (required)")
+		minFree    = flag.Int64("min-free", 0, "Minimum free space in GB (recommended)")
 		maxUsage   = flag.Float64("max-usage", 0, "Maximum disk usage percentage")
-		maxSize    = flag.Int64("max-size", 0, "Maximum size in GB")
-		minFree    = flag.Int64("min-free", 0, "Minimum free space in GB")
+		maxSize    = flag.Int64("max-size", 0, "Maximum size in GB (use when disk info unavailable)")
 		dryRun     = flag.Bool("dry-run", false, "Show what would be deleted without actually deleting")
 		verbose    = flag.Bool("verbose", false, "Show detailed progress")
 	)
@@ -26,12 +26,6 @@ func main() {
 	}
 
 	// Convert GB to bytes
-	var maxSizeBytes *int64
-	if *maxSize > 0 {
-		bytes := *maxSize * 1024 * 1024 * 1024
-		maxSizeBytes = &bytes
-	}
-
 	var minFreeBytes *int64
 	if *minFree > 0 {
 		bytes := *minFree * 1024 * 1024 * 1024
@@ -43,11 +37,17 @@ func main() {
 		maxUsagePtr = maxUsage
 	}
 
-	// Create configuration
+	var maxSizeBytes *int64
+	if *maxSize > 0 {
+		bytes := *maxSize * 1024 * 1024 * 1024
+		maxSizeBytes = &bytes
+	}
+
+	// Create configuration (MinFreeSpace is the recommended primary option)
 	config := cleaner.CleaningConfig{
-		MaxSize:         maxSizeBytes,
-		MaxUsagePercent: maxUsagePtr,
 		MinFreeSpace:    minFreeBytes,
+		MaxUsagePercent: maxUsagePtr,
+		MaxSize:         maxSizeBytes,
 		RemoveEmptyDirs: true,
 	}
 
@@ -89,8 +89,23 @@ func main() {
 	}
 
 	// Validate configuration has at least one constraint
-	if maxSizeBytes == nil && maxUsagePtr == nil && minFreeBytes == nil {
-		log.Fatal("At least one constraint required: -max-usage, -max-size, or -min-free")
+	if minFreeBytes == nil && maxUsagePtr == nil && maxSizeBytes == nil {
+		log.Fatal("At least one constraint required: -min-free (recommended), -max-usage, or -max-size")
+	}
+
+	// Check current disk space if needed
+	if *verbose || minFreeBytes != nil {
+		freeSpace, err := cleaner.GetDiskFreeSpace(*dir)
+		if err != nil {
+			log.Printf("Warning: Could not get disk free space: %v", err)
+		} else {
+			fmt.Printf("Current free space: %s\n", formatBytes(freeSpace))
+			if minFreeBytes != nil && freeSpace >= *minFreeBytes {
+				fmt.Printf("Free space already meets requirement (%s >= %s), no cleanup needed\n",
+					formatBytes(freeSpace), formatBytes(*minFreeBytes))
+				return
+			}
+		}
 	}
 
 	// Run cleanup

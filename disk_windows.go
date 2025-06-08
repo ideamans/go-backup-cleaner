@@ -26,18 +26,17 @@ func (d *DefaultDiskInfoProvider) GetDiskUsage(path string) (*DiskUsage, error) 
 		return nil, err
 	}
 
-	// Get volume path (e.g., "C:\")
-	volumePath := filepath.VolumeName(absPath) + "\\"
-
+	// For non-existent paths, we should use the path itself to check, not just the volume
+	// Try to get disk info using the path first, then fall back to volume
 	var freeBytesAvailable, totalBytes, totalFreeBytes uint64
 
 	// Convert path to UTF16 for Windows API
-	pathPtr, err := syscall.UTF16PtrFromString(volumePath)
+	pathPtr, err := syscall.UTF16PtrFromString(absPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// Call GetDiskFreeSpaceEx
+	// First try with the actual path
 	ret, _, err := procGetDiskFreeSpaceEx.Call(
 		uintptr(unsafe.Pointer(pathPtr)),
 		uintptr(unsafe.Pointer(&freeBytesAvailable)),
@@ -46,6 +45,7 @@ func (d *DefaultDiskInfoProvider) GetDiskUsage(path string) (*DiskUsage, error) 
 	)
 
 	if ret == 0 {
+		// If the path doesn't exist, this should fail
 		return nil, err
 	}
 
@@ -72,18 +72,15 @@ func (d *DefaultDiskInfoProvider) GetBlockSize(path string) (int64, error) {
 		return 0, err
 	}
 
-	// Get volume path (e.g., "C:\")
-	volumePath := filepath.VolumeName(absPath) + "\\"
-
 	// Convert path to UTF16 for Windows API
-	pathPtr, err := syscall.UTF16PtrFromString(volumePath)
+	pathPtr, err := syscall.UTF16PtrFromString(absPath)
 	if err != nil {
 		return 0, err
 	}
 
 	var sectorsPerCluster, bytesPerSector, numberOfFreeClusters, totalNumberOfClusters uint32
 
-	// Call GetDiskFreeSpace to get cluster size information
+	// First try with the actual path
 	ret, _, err := procGetDiskFreeSpace.Call(
 		uintptr(unsafe.Pointer(pathPtr)),
 		uintptr(unsafe.Pointer(&sectorsPerCluster)),
@@ -93,6 +90,7 @@ func (d *DefaultDiskInfoProvider) GetBlockSize(path string) (int64, error) {
 	)
 
 	if ret == 0 {
+		// If the path doesn't exist, this should fail
 		return 0, err
 	}
 

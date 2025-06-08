@@ -8,9 +8,10 @@ import (
 // CleaningConfig represents the configuration for cleaning operations
 type CleaningConfig struct {
 	// Capacity specifications (at least one required)
-	MaxSize         *int64   // Maximum size in bytes
+	// MinFreeSpace is the recommended primary option for most use cases.
+	MinFreeSpace    *int64   // Minimum free space in bytes (recommended)
 	MaxUsagePercent *float64 // Maximum disk usage percentage (0-100)
-	MinFreeSpace    *int64   // Minimum free space in bytes
+	MaxSize         *int64   // Maximum size in bytes (use when disk info is unavailable)
 
 	// Optional settings
 	TimeWindow      time.Duration // Time interval for file aggregation (default: 5 minutes)
@@ -67,11 +68,11 @@ func (c *CleaningConfig) ActualWorkerCount() int {
 
 // validate checks if the configuration is valid
 func (c *CleaningConfig) validate() error {
-	if c.MaxSize == nil && c.MaxUsagePercent == nil && c.MinFreeSpace == nil {
+	if c.MinFreeSpace == nil && c.MaxUsagePercent == nil && c.MaxSize == nil {
 		return ErrNoCapacitySpecified
 	}
 
-	if c.MaxSize != nil && *c.MaxSize < 0 {
+	if c.MinFreeSpace != nil && *c.MinFreeSpace < 0 {
 		return ErrInvalidConfig
 	}
 
@@ -79,7 +80,7 @@ func (c *CleaningConfig) validate() error {
 		return ErrInvalidConfig
 	}
 
-	if c.MinFreeSpace != nil && *c.MinFreeSpace < 0 {
+	if c.MaxSize != nil && *c.MaxSize < 0 {
 		return ErrInvalidConfig
 	}
 

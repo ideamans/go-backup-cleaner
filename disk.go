@@ -25,3 +25,23 @@ func calculateBlockSize(fileSize int64, blockSize int64) int64 {
 	blocks := (fileSize + blockSize - 1) / blockSize
 	return blocks * blockSize
 }
+
+// GetDiskFreeSpace returns the available disk space for the given directory path.
+// This is a convenience function useful for quickly checking if cleanup is needed
+// before performing the actual backup cleaning operation.
+//
+// When using MinFreeSpace configuration (recommended), you can use this function
+// to pre-check if cleanup is necessary:
+//
+//	freeSpace, err := GetDiskFreeSpace("/backup")
+//	if err == nil && freeSpace < requiredSpace {
+//	    // Perform cleanup
+//	}
+func GetDiskFreeSpace(dirPath string) (int64, error) {
+	provider := &DefaultDiskInfoProvider{}
+	usage, err := provider.GetDiskUsage(dirPath)
+	if err != nil {
+		return 0, err
+	}
+	return int64(usage.Free), nil
+}

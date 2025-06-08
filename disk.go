@@ -26,7 +26,8 @@ func calculateBlockSize(fileSize int64, blockSize int64) int64 {
 	return blocks * blockSize
 }
 
-// GetDiskFreeSpace returns the available disk space for the given directory path.
+// GetDiskFreeSpace returns the available disk space for the given directory path
+// using the default disk info provider.
 // This is a convenience function useful for quickly checking if cleanup is needed
 // before performing the actual backup cleaning operation.
 //
@@ -39,6 +40,18 @@ func calculateBlockSize(fileSize int64, blockSize int64) int64 {
 //	}
 func GetDiskFreeSpace(dirPath string) (int64, error) {
 	provider := &DefaultDiskInfoProvider{}
+	return GetDiskFreeSpaceWithProvider(dirPath, provider)
+}
+
+// GetDiskFreeSpaceWithProvider returns the available disk space for the given directory path
+// using a custom disk info provider. This allows for dependency injection and testing
+// with mock providers.
+//
+// Example with custom provider:
+//
+//	provider := &CustomDiskInfoProvider{}
+//	freeSpace, err := GetDiskFreeSpaceWithProvider("/backup", provider)
+func GetDiskFreeSpaceWithProvider(dirPath string, provider DiskInfoProvider) (int64, error) {
 	usage, err := provider.GetDiskUsage(dirPath)
 	if err != nil {
 		return 0, err

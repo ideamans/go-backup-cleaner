@@ -105,6 +105,7 @@ func TestDiskInfoProviderWithInvalidPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	nonExistentPath := tmpFile.Name() + "_nonexistent"
+	t.Logf("Test path: %s", nonExistentPath)
 	if err := tmpFile.Close(); err != nil {
 		t.Logf("tmpFile close failed: %v", err)
 	}
@@ -113,11 +114,13 @@ func TestDiskInfoProviderWithInvalidPath(t *testing.T) {
 	}
 
 	_, err = provider.GetDiskUsage(nonExistentPath)
+	t.Logf("GetDiskUsage error: %v", err)
 	if err == nil {
 		t.Error("Expected error for non-existent path")
 	}
 
 	_, err = provider.GetBlockSize(nonExistentPath)
+	t.Logf("GetBlockSize error: %v", err)
 	if err == nil {
 		t.Error("Expected error for non-existent path")
 	}

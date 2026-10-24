@@ -152,3 +152,46 @@ func TestThresholdCoversWholeSlot(t *testing.T) {
 		t.Errorf("threshold %v should be the end of the first slot", th)
 	}
 }
+
+// dry-run が出した予定と、実際に消した結果が一致する（2026-10-24 に aoki01 で、予定 41,262 件・6.6GB と実際が一致した）
+func TestCleanBackupsDryRunMatchesActual(t *testing.T) {
+	for _, blocks := range []int64{11, 12, 13, 14} {
+		a, b := multiRootFixture(t)
+		minFree := blocks * 4096
+		cfg := CleaningConfig{MinFreeSpace: &minFree, RemoveEmptyDirs: true, DiskInfo: &fixedFreeProvider{free: 10 * 4096}}
+		dry := cfg
+		dry.DryRun = true
+		planned, err := CleanBackups([]string{a, b}, dry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actual, err := CleanBackups([]string{a, b}, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if planned.DeletedFiles != actual.DeletedFiles || planned.DeletedSize != actual.DeletedSize {
+			t.Errorf("%d blocks: planned %d files %d bytes, deleted %d files %d bytes",
+				blocks, planned.DeletedFiles, planned.DeletedSize, actual.DeletedFiles, actual.DeletedSize)
+		}
+		for i := range planned.Roots {
+			if planned.Roots[i].DeletedFiles != actual.Roots[i].DeletedFiles || planned.Roots[i].DeletedSize != actual.Roots[i].DeletedSize {
+				t.Errorf("%d blocks, root %d: planned %+v, actual %+v", blocks, i, planned.Roots[i], actual.Roots[i])
+			}
+		}
+	}
+}
+
+// MaxSize（ディスク情報が取れないとき）は、上限に収まる分だけ消し、それより新しいものは消さない
+func TestThresholdForMaxSizeCoversOnlyNeededSlots(t *testing.T) {
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	slots := []*timeSlot{
+		{time: base, totalBlockSize: 4096},
+		{time: base.Add(5 * time.Minute), totalBlockSize: 4096},
+		{time: base.Add(10 * time.Minute), totalBlockSize: 4096},
+	}
+	th, files, _ := calculateThresholdForMaxSize(slots, 2*4096, 5*time.Minute)
+	// 1 枠だけ消せば上限に収まる。2 枠目（5 分〜）は消さない（以前は 1 時間先まで消していた）
+	if !th.Equal(base.Add(5*time.Minute)) || files != 0 {
+		t.Errorf("threshold %v, files %d", th, files)
+	}
+}

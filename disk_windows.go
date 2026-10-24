@@ -6,6 +6,7 @@ package gobackupcleaner
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -14,9 +15,9 @@ import (
 // No external dependencies are required
 
 var (
-	kernel32                = syscall.NewLazyDLL("kernel32.dll")
-	procGetDiskFreeSpaceEx  = kernel32.NewProc("GetDiskFreeSpaceExW")
-	procGetDiskFreeSpace    = kernel32.NewProc("GetDiskFreeSpaceW")
+	kernel32               = syscall.NewLazyDLL("kernel32.dll")
+	procGetDiskFreeSpaceEx = kernel32.NewProc("GetDiskFreeSpaceExW")
+	procGetDiskFreeSpace   = kernel32.NewProc("GetDiskFreeSpaceW")
 )
 
 // GetDiskUsage returns disk usage information for the given path
@@ -97,4 +98,13 @@ func (d *DefaultDiskInfoProvider) GetBlockSize(path string) (int64, error) {
 	// Cluster size is the effective "block size" on Windows
 	clusterSize := int64(sectorsPerCluster) * int64(bytesPerSector)
 	return clusterSize, nil
+}
+
+// GetFilesystemID returns the volume (drive letter or UNC share) of path
+func (d *DefaultDiskInfoProvider) GetFilesystemID(path string) (string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.ToUpper(filepath.VolumeName(absPath)), nil
 }

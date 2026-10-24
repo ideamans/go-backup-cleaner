@@ -15,7 +15,8 @@ type Callbacks struct {
 
 // StartInfo contains information at the start of cleaning
 type StartInfo struct {
-	TargetDir    string
+	TargetDir    string   // the first directory (kept for compatibility)
+	TargetDirs   []string // all directories given to CleanBackups
 	CurrentUsage DiskUsage
 	TargetSize   int64 // Size to be deleted in bytes
 }

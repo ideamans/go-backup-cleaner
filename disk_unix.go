@@ -5,6 +5,7 @@ package gobackupcleaner
 
 import (
 	"errors"
+	"strconv"
 	"syscall"
 )
 
@@ -42,4 +43,13 @@ func (d *DefaultDiskInfoProvider) GetBlockSize(path string) (int64, error) {
 		return 0, err
 	}
 	return int64(stat.Bsize), nil
+}
+
+// GetFilesystemID returns the device number of the filesystem holding path
+func (d *DefaultDiskInfoProvider) GetFilesystemID(path string) (string, error) {
+	var st syscall.Stat_t
+	if err := syscall.Stat(path, &st); err != nil {
+		return "", err
+	}
+	return strconv.FormatUint(uint64(st.Dev), 10), nil
 }

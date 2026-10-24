@@ -69,6 +69,7 @@ func main() {
 
 - `TimeWindow`: ファイル集計の時間間隔（デフォルト: 5分）
 - `RemoveEmptyDirs`: 空ディレクトリを削除するか（デフォルト: true）
+- `DryRun`: 走査して消す予定のものを報告するだけで、何も消さない
 - `Concurrency`: 並列処理の並行度（デフォルト: runtime.NumCPU()）
 - `MaxConcurrency`: 最大並行度（デフォルト: 4）
 
@@ -148,6 +149,24 @@ if freeSpace < requiredFreeSpace {
 - 簡易的なクォータベースのクリーンアップ
 
 注意：`MaxUsagePercent`と`MinFreeSpace`はディスク使用量情報を必要とし、ディスク使用量が利用できない場合は使用できません。
+
+## 同じディスク上の複数のディレクトリ
+
+`CleanBackups` は複数のバックアップディレクトリを1つの列として扱います。全ディレクトリのファイルを
+更新日時の順に並べ、どこにあるかに関係なく古いものから消します。あるディレクトリだけが空になり、
+別のディレクトリにもっと古いファイルが残る、ということが起きません。
+
+```go
+report, err := gobackupcleaner.CleanBackups([]string{"/backup/site-a", "/backup/site-b"}, config)
+for _, r := range report.Roots {
+    fmt.Printf("%s: %d 件、%d バイト\n", r.Dir, r.DeletedFiles, r.DeletedSize)
+}
+```
+
+- ディスクの使用量は最初のディレクトリから取ります。`MinFreeSpace` / `MaxUsagePercent` を使うときは、
+  全ディレクトリが同じファイルシステムにある必要があります（違えば `ErrDifferentFilesystems`）
+- 渡したディレクトリ自体は、空になっても消しません（`RemoveEmptyDirs` が消すのはその中のディレクトリだけ）
+- `DryRun: true` は走査して消す予定のものを報告するだけで、何も消しません（`report.DryRun`、ディレクトリごとの `Roots`）
 
 ## テスト
 

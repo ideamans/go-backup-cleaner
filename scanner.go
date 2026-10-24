@@ -3,6 +3,7 @@ package gobackupcleaner
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
@@ -13,6 +14,7 @@ type fileInfo struct {
 	size      int64
 	blockSize int64
 	modTime   time.Time
+	root      int // index of the directory given to CleanBackups
 }
 
 // timeSlot represents files grouped by time interval
@@ -35,6 +37,7 @@ type scanner struct {
 	workerCount int
 	mu          sync.Mutex
 	timeSlots   map[time.Time]*timeSlot
+	root        int // index of the directory being scanned (roots are scanned one at a time)
 }
 
 // newScanner creates a new scanner instance
@@ -143,6 +146,7 @@ func (s *scanner) processPath(path string, taskChan chan scanTask, taskWg *sync.
 			size:      info.Size(),
 			blockSize: calculateBlockSize(info.Size(), s.blockSize),
 			modTime:   info.ModTime(),
+			root:      s.root,
 		}
 		s.addFile(fi)
 	}
@@ -201,13 +205,5 @@ func (s *scanner) getTotalFiles() int {
 
 // sortTimeSlots sorts time slots by time (oldest first)
 func sortTimeSlots(slots []*timeSlot) {
-	// Simple bubble sort for clarity (can be optimized if needed)
-	n := len(slots)
-	for i := 0; i < n-1; i++ {
-		for j := 0; j < n-i-1; j++ {
-			if slots[j].time.After(slots[j+1].time) {
-				slots[j], slots[j+1] = slots[j+1], slots[j]
-			}
-		}
-	}
+	sort.Slice(slots, func(i, j int) bool { return slots[i].time.Before(slots[j].time) })
 }

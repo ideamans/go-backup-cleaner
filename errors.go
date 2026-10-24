@@ -14,4 +14,8 @@ var (
 
 	// ErrInsufficientSpace is returned when enough space cannot be freed
 	ErrInsufficientSpace = errors.New("cannot free enough space")
+
+	// ErrDifferentFilesystems is returned when CleanBackups is given directories on
+	// different filesystems with a disk-based limit (MinFreeSpace / MaxUsagePercent)
+	ErrDifferentFilesystems = errors.New("directories are on different filesystems")
 )

@@ -69,6 +69,7 @@ func main() {
 
 - `TimeWindow`: Time interval for file aggregation (default: 5 minutes)
 - `RemoveEmptyDirs`: Whether to remove empty directories (default: true)
+- `DryRun`: Scan and report what would be deleted, delete nothing
 - `Concurrency`: Level of concurrency (default: runtime.NumCPU())
 - `MaxConcurrency`: Maximum level of concurrency (default: 4)
 
@@ -148,6 +149,26 @@ This allows for efficient pre-checks to avoid unnecessary file scanning when dis
 - Simplified quota-based cleanup
 
 Note: `MaxUsagePercent` and `MinFreeSpace` require disk usage information and cannot be used when disk usage is unavailable.
+
+## Several Directories on One Disk
+
+`CleanBackups` treats several backup directories as one pool. Files from all of them
+are ordered by modification time together and the oldest go first, wherever they live,
+so one directory is not emptied while another keeps older files.
+
+```go
+report, err := gobackupcleaner.CleanBackups([]string{"/backup/site-a", "/backup/site-b"}, config)
+for _, r := range report.Roots {
+    fmt.Printf("%s: %d files, %d bytes freed\n", r.Dir, r.DeletedFiles, r.DeletedSize)
+}
+```
+
+- Disk usage is taken from the first directory. With `MinFreeSpace` or `MaxUsagePercent`,
+  all directories must be on the same filesystem (`ErrDifferentFilesystems` otherwise)
+- The given directories are never removed, even when emptied (`RemoveEmptyDirs` only removes
+  directories inside them)
+- `DryRun: true` scans and reports what would be deleted (`report.DryRun`, per-directory `Roots`)
+  without deleting anything
 
 ## Testing
 

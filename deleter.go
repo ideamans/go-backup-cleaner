@@ -24,7 +24,7 @@ func (d *deletedDirs) add(dir string) {
 func (d *deletedDirs) toSlice() []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	dirs := make([]string, 0, len(d.dirs))
 	for dir := range d.dirs {
 		dirs = append(dirs, dir)
@@ -42,11 +42,23 @@ type deleter struct {
 	deletedFiles  int
 	deletedSize   int64
 	deletedBlocks int64
+
+	roots     map[string]struct{} // directories given to CleanBackups (never removed)
+	root      int                 // index of the directory being processed
+	rootFiles []int
+	rootSize  []int64
 }
 
 // newDeleter creates a new deleter instance
-func newDeleter(config *CleaningConfig, blockSize int64) *deleter {
+func newDeleter(config *CleaningConfig, blockSize int64, roots []string) *deleter {
+	rootSet := make(map[string]struct{}, len(roots))
+	for _, r := range roots {
+		rootSet[filepath.Clean(r)] = struct{}{}
+	}
 	return &deleter{
+		roots:       rootSet,
+		rootFiles:   make([]int, len(roots)),
+		rootSize:    make([]int64, len(roots)),
 		config:      config,
 		blockSize:   blockSize,
 		workerCount: config.ActualWorkerCount(),
@@ -153,7 +165,7 @@ func (d *deleter) processPath(path string, taskChan chan scanTask, threshold tim
 		// Delete file if it's older than threshold
 		size := info.Size()
 		blockSize := calculateBlockSize(size, d.blockSize)
-		
+
 		if err := os.Remove(path); err != nil {
 			return err
 		}
@@ -163,6 +175,8 @@ func (d *deleter) processPath(path string, taskChan chan scanTask, threshold tim
 		d.deletedFiles++
 		d.deletedSize += size
 		d.deletedBlocks += blockSize
+		d.rootFiles[d.root]++
+		d.rootSize[d.root] += size
 		d.mu.Unlock()
 
 		// Track parent directory
@@ -208,6 +222,10 @@ func (d *deleter) deleteEmptyDirs() (int, error) {
 
 // deleteEmptyDirRecursive recursively deletes empty directories
 func (d *deleter) deleteEmptyDirRecursive(dir string, deletedCount *int) error {
+	// Never remove a root or anything outside the roots
+	if !d.withinRoot(dir) {
+		return nil
+	}
 	// Check if directory is empty
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -225,7 +243,7 @@ func (d *deleter) deleteEmptyDirRecursive(dir string, deletedCount *int) error {
 		}
 
 		(*deletedCount)++
-		
+
 		// Call callback
 		callSafe(d.config.Callbacks.OnDirDeleted, DirDeletedInfo{
 			Path: dir,
@@ -246,4 +264,20 @@ func (d *deleter) getStats() (files int, size int64, blocks int64) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.deletedFiles, d.deletedSize, d.deletedBlocks
+}
+
+// withinRoot reports whether dir is strictly inside one of the roots
+func (d *deleter) withinRoot(dir string) bool {
+	dir = filepath.Clean(dir)
+	if _, ok := d.roots[dir]; ok {
+		return false
+	}
+	for p := filepath.Dir(dir); ; p = filepath.Dir(p) {
+		if _, ok := d.roots[p]; ok {
+			return true
+		}
+		if parent := filepath.Dir(p); parent == p {
+			return false
+		}
+	}
 }

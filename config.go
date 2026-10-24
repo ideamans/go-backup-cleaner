@@ -16,12 +16,13 @@ type CleaningConfig struct {
 	// Optional settings
 	TimeWindow      time.Duration // Time interval for file aggregation (default: 5 minutes)
 	RemoveEmptyDirs bool          // Whether to remove empty directories (default: true)
-	
+	DryRun          bool          // Scan and compute what would be deleted, but delete nothing
+
 	// Concurrency settings
 	// Concurrency specifies the desired level of concurrency.
 	// If 0, defaults to runtime.NumCPU().
 	Concurrency int
-	
+
 	// MaxConcurrency limits the maximum level of concurrency.
 	// Defaults to 4, as benchmarks show diminishing returns beyond this value.
 	// The actual concurrency will be min(Concurrency, MaxConcurrency).
@@ -39,17 +40,17 @@ func (c *CleaningConfig) setDefaults() {
 	if c.TimeWindow == 0 {
 		c.TimeWindow = 5 * time.Minute
 	}
-	
+
 	// Set default concurrency to CPU count if not specified
 	if c.Concurrency == 0 {
 		c.Concurrency = runtime.NumCPU()
 	}
-	
+
 	// Set default max concurrency
 	if c.MaxConcurrency == 0 {
 		c.MaxConcurrency = 4
 	}
-	
+
 	if c.DiskInfo == nil {
 		c.DiskInfo = &DefaultDiskInfoProvider{}
 	}

@@ -58,3 +58,31 @@ func GetDiskFreeSpaceWithProvider(dirPath string, provider DiskInfoProvider) (in
 	}
 	return int64(usage.Free), nil
 }
+
+// FilesystemIdentifier is implemented by DiskInfoProviders that can tell which
+// filesystem a path is on. CleanBackups uses it to refuse disk-based limits over
+// directories on different filesystems. Providers without it skip the check.
+type FilesystemIdentifier interface {
+	GetFilesystemID(path string) (string, error)
+}
+
+func checkSameFilesystem(dirPaths []string, provider DiskInfoProvider) error {
+	ident, ok := provider.(FilesystemIdentifier)
+	if !ok {
+		return nil
+	}
+	first, err := ident.GetFilesystemID(dirPaths[0])
+	if err != nil {
+		return err
+	}
+	for _, p := range dirPaths[1:] {
+		id, err := ident.GetFilesystemID(p)
+		if err != nil {
+			return err
+		}
+		if id != first {
+			return ErrDifferentFilesystems
+		}
+	}
+	return nil
+}
